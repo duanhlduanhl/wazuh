@@ -14,31 +14,30 @@
 
 #include "os_regex.h"
 #include "os_regex_internal.h"
+#include "shared.h"
 
 
 /* Split a string into multiples pieces, divided by a char "match".
  * Returns a NULL terminated array on success or NULL on error.
  */
-char **OS_StrBreak(char match, const char *str, size_t size)
+char **OS_StrBreak(char match, const char *str, size_t size, int scape_match)
 {
     size_t count = 0;
     size_t i = 0;
-    const char *tmp_str = str;
+    int pos = 0;
+    int pos_aux = 0;
+    int elemts = 0;
+    char *tmp_str;
     char **ret;
-    char *str_ant = NULL;
-    char *aux_str = NULL;
 
     /* We can't do anything if str is null */
     if (str == NULL) {
         return (NULL);
     }
 
-    ret = (char **)calloc(size + 1, sizeof(char *));
+    os_calloc(strlen(str) + 1, sizeof(char), tmp_str);
 
-    if (ret == NULL) {
-        /* Memory error. Should provide a better way to detect it */
-        return (NULL);
-    }
+    os_calloc(size + 1, sizeof(char *), ret);
 
     /* Allocate memory to null */
     while (i <= size) {
@@ -46,60 +45,53 @@ char **OS_StrBreak(char match, const char *str, size_t size)
         i++;
     }
 
-    i = 0;
-
     while (*str != '\0') {
-        i++;
+        pos = strcspn(str, &match);
 
-        /* If before match value exists backslash, skip it. */
-        if((count < size - 1) && (*str == match) &&
-           (str_ant && *str_ant == '\\')) {
+        /* If before match value exists backslash and scape_match is 1, skip it. */
+        while((count < size - 1) && scape_match && pos > 0 && str[pos-1] == '\\') {
 
-            aux_str = calloc(strlen(tmp_str)+1, sizeof(char));
-            strncpy(aux_str, tmp_str, i-2);
-            strcat(aux_str, str);
-            strcpy(tmp_str, aux_str);
-            str_ant = tmp_str+i-2;
-            str = tmp_str+i-1;
-            i--;
-            free(aux_str);
+            strncpy(tmp_str, str, pos - 1);
+            tmp_str[pos - 1] = '\0';
+            strcat(tmp_str, str + pos);
+            str = tmp_str;
+            pos_aux = strcspn(str + pos, &match);
+            pos += pos_aux;
+        }
+
+        if ((count < size - 1)) {
+            os_calloc(pos + 1, sizeof(char), ret[count]);
+
+            /* Copy the string */
+            ret[count][pos] = '\0';
+            strncpy(ret[count], str, pos);
+            count++;
+
+            elemts = strlen(str);
+            if(elemts < pos + 1) {
+                break;
+            }
+
+            str += pos + 1;
             continue;
         }
 
-        if ((count < size - 1) && (*str == match)) {
-
-            ret[count] = (char *)calloc(i, sizeof(char));
-
-            if (ret[count] == NULL) {
-                goto error;
-            }
-
-            /* Copy the string */
-            ret[count][i - 1] = '\0';
-            strncpy(ret[count], tmp_str, i - 1);
-
-            tmp_str = str+1;
-            count++;
-            i = 0;
-        }
-
-        str_ant = str;
         str++;
     } /* leave from here when *str == \0 */
 
+    os_free(tmp_str);
+
     /* Just do it if count < size */
     if (count < size) {
-        ret[count] = (char *)calloc(i + 1, sizeof(char));
-
-        if (ret[count] == NULL) {
-            goto error;
-        }
 
         /* Copy the string */
-        ret[count][i] = '\0';
-        strncpy(ret[count], tmp_str, i);
-
-        count++;
+        elemts = strlen(str);
+        if (elemts > pos + 1) {
+            os_calloc(pos + 1, sizeof(char), ret[count]);
+            ret[count][pos] = '\0';
+            strncpy(ret[count], str, pos - 1);
+            count++;
+        }
 
         /* Make sure it is null terminated */
         ret[count] = NULL;
@@ -111,16 +103,10 @@ char **OS_StrBreak(char match, const char *str, size_t size)
      * Just let "error" handle that
      */
 
-error:
-    i = 0;
-
-    while (i < count) {
-        free(ret[i]);
-        i++;
+    for (i = 0; ret[i]; i++) {
+        os_free(ret[i]);
     }
 
-    free(ret);
-    return (NULL);
-
+    os_free(ret);
+    return NULL;
 }
-
