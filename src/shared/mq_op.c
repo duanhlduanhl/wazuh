@@ -27,13 +27,13 @@ int StartMQ(const char *path, short int type, short int n_tries)
     /* We give up to 21 seconds for the other end to start */
     else {
         int rc = 0, sleep_time = 5;
-        short int try = 0;
+        short int attempt = 0;
 
         // If n_tries is 0, trying to reconnect infinitely
         while ((rc = OS_ConnectUnixDomain(path, SOCK_DGRAM, OS_MAXSTR + 256)), rc < 0){
-            try++;
-            minfo("Can't connect to queue. Try: %d", try);
-            if (n_tries != 0 && try == n_tries) {
+            attempt++;
+            merror("Can't connect to queue. Attempt: %d", attempt);
+            if (n_tries != 0 && attempt == n_tries) {
                 break;
             }
             sleep(sleep_time += 5);
@@ -43,7 +43,7 @@ int StartMQ(const char *path, short int type, short int n_tries)
             merror(QUEUE_ERROR, path, strerror(errno));
             return OS_INVALID;
         }
-        minfo ("connected succesfully to %s after %d tries", path, try);
+        minfo ("connected succesfully to %s after %d tries", path, attempt);
 
         mdebug1(MSG_SOCKET_SIZE, OS_getsocketsize(rc));
         return (rc);
